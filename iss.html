@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ISS</title>
+  <style>
+    body {background-color:#555555;}
+    input {
+        background-color:#666666;
+        border-width: inherit;
+        font-size:14pt;
+    }
+    button {
+        background-color:#333333;
+        color:#efefef;
+        font-size:14pt;
+    }
+    tbody tr:nth-child(odd) {
+        background-color: #444444;
+    }
+    #listDiv {
+        border : 1px solid #444444;
+        position : fixed;
+        width : 96%;
+        background-color: #333333;
+        color: #888888;
+    }
+    #pageDiv {
+        border : 1px solid #323232;
+    }
+
+    @media (max-width: 375px) {
+        html {
+            font-size:14pt;
+        }
+    }
+    pre {
+        font-size: 12pt;
+    }
+    span {
+        color:#3da126;
+    }
+  </style>
+  <script src="kssmcode.js?v1.0"></script>
+  <script>
+    var params = URLSearchParams && new URLSearchParams(document.location.search.substring(1));
+    var url = params && params.get("url") && decodeURIComponent(params.get("url"));
+
+/**
+ * 문자열의 바이트수 리턴
+ * @returns {Number}
+ */
+String.prototype.byteLength = function() {
+    var l= 0;
+
+    for(var idx=0; idx < this.length; idx++) {
+        var c = escape(this.charAt(idx));
+
+        if( c.length==1 ) l ++;
+        else if( c.indexOf("%u")!=-1 ) l += 2;
+        else if( c.indexOf("%")!=-1 ) l += c.length/3;
+    }
+    return l;
+};
+//출처: https://stove99.tistory.com/83 [스토브 훌로구:티스토리]
+
+
+console.logCopy = console.log.bind(console);
+
+console.log = function()
+{
+    // Timestamp to prepend
+    var timestamp = new Date().toJSON();
+    //var timestamp = new Date().toISOString();
+
+    if (arguments.length)
+    {
+        // True array copy so we can call .splice()
+        var args = Array.prototype.slice.call(arguments, 0);
+
+        // If there is a format string then... it must
+        // be a string
+        if (typeof arguments[0] === "string")
+        {
+            // Prepend timestamp to the (possibly format) string
+            args[0] = "%o: " + arguments[0];
+
+            // Insert the timestamp where it has to be
+            args.splice(1, 0, timestamp);
+
+            // Log the whole array
+            this.logCopy.apply(this, args);
+        }
+        else
+        {
+            // "Normal" log
+            this.logCopy(timestamp, args);
+        }
+    }
+};
+    function log() {
+        console.log.apply(console, arguments);
+    }
+
+var idx = 0;
+    //var Headerfunction 
+    var getByte = (()=>{
+        var position = 0;
+        return (length, type)=>{
+            var start = position;
+            position += length;
+            idx=position;
+            type=type||'';
+            if(type=='int8'){
+                return uInt8Array[start];
+            } else if(type=='int16'){
+                return uInt8Array[position-1]<<8|uInt8Array[start];
+            } else {
+                returnVal='';
+                for(var i=0; i<length; i++){
+                    var h = uInt8Array[ start+i   ];
+                    //console.log(h)
+                    if(h == 0x00) break; // 쓰레기값이 출력되서 EOF?처리함
+                    var l = '';
+                    if(uInt8Array.length > start+i+1) l = uInt8Array[ start+i+1 ];
+
+                    if(h & 0x80) {
+                        if (l == 0x00) {// continue;	/* 하위 바이트 ERROR */
+                            returnVal += '[]';
+                            continue;
+                        }
+
+                        var ch = ((h << 8) & 0xff00) + (l & 0xff);
+                        if (ch >= 0x8861 && ch <= 0xd3b7) {	/* '가'부터 '힝'까지 2,350자 */
+                            returnVal+=KSSMCODE[ch] || '';
+                        } else if (ch >= 0xd931 && ch <= 0xdef1) {	/* 조합형 symbol */
+                            if(!KSSMCODE[ch]) console.log('MM', h, l, ch, ch.toString(16), KSSMCODE[ch]);
+                            //returnVal+='MM';
+                            returnVal+=KSSMCODE[ch] || 'MM';
+                        } else {	/* 초성 'ㄱ', 종성 자음, 모음 */
+                            if(!KSSMCODE[ch]) console.log('HH', h, l, ch, ch.toString(16), KSSMCODE[ch]);
+                            //returnVal+='HH';
+                            returnVal+=KSSMCODE[ch] || 'HH';
+                        }
+                        i++;
+                    } else {
+                        returnVal += String.fromCharCode(uInt8Array[start+i]).replace(/\x00/g,'');
+//                        returnVal += String.fromCharCode(uInt8Array[start+i]);
+                    }
+                }
+                //if(length==64) 
+                //if(length>2) 
+                //console.log(returnVal);
+                return returnVal;
+            }
+        }
+    })();
+
+    // 해더
+    function SongHeader(){
+        return {
+            head_str   : getByte(20         )   // 25 char
+           ,reserved   : getByte(10         )   // 25 char
+           ,writer     : getByte(30         )   // 25 char
+           ,composer   : getByte(30         )   // 25 char
+           ,singer     : getByte(30         )   // 25 char
+           ,editor     : getByte(30         )   // 25 char
+           ,rec_count  : getByte( 2, 'int16')   // int
+           ,line_count : getByte( 2, 'int16')   // int
+        };
+    }
+
+    // 가사 출력관련 개체
+    function SongRec(){
+        return {
+            kasa_tick : getByte(2, 'int16') // int
+           ,line      : getByte(1, 'int8') //char
+           ,start_x   : getByte(1, 'int8') //char
+           ,width_x   : getByte(1, 'int8') //char
+        }
+    }
+
+    function download(filename, text) {
+        filename = file.split('/').pop()+'.txt';
+        text = lyric.join('\n');
+
+        var element = document.createElement('a');
+        //  element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(text));
+        element.setAttribute('href', 'data:text/plain;charset=utf-8,' + text);
+        element.setAttribute('download', filename);
+
+        element.style.display = 'none';
+        document.body.appendChild(element);
+
+        element.click();
+
+        document.body.removeChild(element);
+    }
+
+function myBlobToUIntDemo() {
+  let str='content';
+
+  str2blob=(str,type='text/plain')=>new Blob([str],{type:type});
+
+  let blob=str2blob(str);  
+
+  function blob2uint(blob){
+      return new Response(blob).arrayBuffer().then(buffer=>{
+          uint=[...new Uint8Array(buffer)];
+          console.log("Uint8Array",uint);
+          return uint;
+      });
+  }
+  
+  let uint8data = blob2uint(blob);
+  console.log(uint8data); //Show Uint8Array
+}
+
+function downloadFile() {
+  const blob = new Blob([lyric.join('\n')], {type: 'text/plain'})
+  const url = window.URL.createObjectURL(blob)
+  const a = document.createElement("a")
+  a.href = url
+  a.download = file.split('/').pop()+'.txt'
+  a.click()
+  a.remove()
+  window.URL.revokeObjectURL(url);
+}
+
+var uInt8Array;
+var binaryString;
+var sh;
+var file;
+    window.onload = ()=>{
+        //console.log(new Date().toISOString(), 'start');
+        var xhr = new XMLHttpRequest();
+//console.log(url)
+//console.log(decodeURIComponent(url))
+        //file = encodeURIComponent(url)||'050.ISS';
+        file = url||'050.ISS';
+        //var file = 'BB-COOL.ISS';
+        //var file = 'CLUB.ISS';
+        //var file = 'CLASSIC2.ISS';
+        //var file = 'BEST6027.ISS';
+        //var file = 'COM-DEU3.ISS';
+        log('file',file);
+
+        xhr.open('GET', file, true);
+        xhr.responseType = 'arraybuffer';
+        xhr.withCredentials = true;
+        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest'); xhr.setRequestHeader('Access-Control-Allow-Origin', '*');
+
+        // Process the response when the request is ready.
+        xhr.onload = function(e) {
+          //console.log(new Date().toISOString(), 'xhr.onload');
+          if (this.status == 200) {
+            // Create a binary string from the returned data, then encode it as a data URL.
+            //log('this.response',this.response);
+            //console.log('this.response',this.response);
+                 uInt8Array = new Uint8Array(this.response);
+
+                 sh = new SongHeader();
+                log('SongHeader',sh);
+
+                sr = [];
+                for(var i=0; i<sh.rec_count; i++) sr.push(new SongRec());
+log('file Position',idx);
+                // 가사 읽기
+                lyrics = [];
+                for(var i=0; i<sh.line_count; i++)
+                    lyrics.push( getByte(64) );   // 64 char
+//                listDiv.innerHTML = '<pre role="img" aria-label="ASCII COW">'+lyrics.join('\n')+'</pre>';
+
+                var brforeLine = sr[0].line;
+                lyric = [ lyrics[brforeLine] ];
+                for(var i=1; i<sh.rec_count; i++){
+                    if(brforeLine != sr[i].line){
+                        //console.log('brforeLine',brforeLine,'sr[i].line',sr[i].line);
+                        //lyric.push( 'brforeLine:'+brforeLine,', sr[i].line:'+sr[i].line );
+                        brforeLine = sr[i].line;
+                        lyric.push( lyrics[brforeLine] );
+                    }
+                }
+                //listDiv.innerHTML = '<pre role="img" aria-label="ASCII COW">'+lyric.join('\n')+'</pre>';
+                pageDiv.innerHTML = '<pre role="img" aria-label="ASCII COW">'+lyric.join('\n')+'</pre>';
+
+                var tmp = '                   어느날 우연히 그 사람 고개숙여';
+                //var tmp = '                   <font color=#3da126>어</font><span>느</span>날 우연히 그 사람 고개숙여';
+                //listDiv.innerHTML = tmp.replace(/[ ]/g,'&nbsp;');
+                //listDiv.innerHTML = tmp;
+                //listDiv.innerHTML = '<pre aria-label="ASCII COW">'+tmp+'</pre>';
+//            download(file+'.txt',lyrics);
+
+          }
+        };
+        xhr.send();
+    }
+
+String.prototype.sliceByByte = function(start,width){
+    var tmp = '';
+    var start_i;
+    var width_i;
+    for(b=i=0;c=this.charCodeAt(i);) {
+        var isNotAscii = c>>7;
+        b+=isNotAscii?2:1;
+        //if (b > maxByte) break;
+        if(b==start) {
+            tmp = this.slice(0,i+1)+'<span>';
+            start_i = i+1;
+        }
+        if(b==(start+width)){
+            log('start_i',start_i,'i',i,this.charAt(i));
+            tmp+= this.slice(start_i,i+1)+'</span>'+this.slice(i+1,this.length-1);
+            width_i = i;
+            break;
+        }
+        i++;
+    }
+    return tmp;
+}
+
+function sliceByByte(str, maxByte) {
+    for(b=i=0;c=str.charCodeAt(i);) {
+        b+=c>>7?2:1;
+        if (b > maxByte)
+            break;
+        i++;
+    }
+    return str.substring(0,i);
+}
+
+    var shIndex = 0;
+    function viewLyric(){
+        listDiv.innerHTML = lyrics[ sr[shIndex].line ].replace(/[ ]/g,'&nbsp;');
+        btnDiv.innerHTML = JSON.stringify( sr[shIndex] );
+        tick = sr[shIndex].kasa_tick;
+        shIndex++;
+        if(shIndex < sr.length){
+            setTimeout(viewLyric, (sr[shIndex].kasa_tick-tick)*5);
+        }else{
+            btnDiv.innerHTML = 'End';
+        }
+    }
+  </script>
+</head>
+<body>
+<div id=listDiv></div>
+<div id=listDivFix><pre><br/> &nbsp;</pre></div>
+<div id=btnDiv><button onclick="download()">Download</button><button onclick="viewLyric()">ViewLyric</button></div>
+<div id=pageDiv></div>
+</body>
+</html>
