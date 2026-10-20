@@ -70,6 +70,7 @@ console.logCopy = console.log.bind(console);
 
 console.log = function()
 {
+    /*
     // Timestamp to prepend
     var timestamp = new Date().toJSON();
     //var timestamp = new Date().toISOString();
@@ -98,6 +99,10 @@ console.log = function()
             this.logCopy(timestamp, args);
         }
     }
+    */
+        this.logCopy.apply(console
+            , [new Date().toJSON()].concat(Array.prototype.slice.call(arguments, 0)) );
+
 };
     function log() {
         console.log.apply(console, arguments);
@@ -285,7 +290,7 @@ log('file Position',idx);
                 //listDiv.innerHTML = '<pre role="img" aria-label="ASCII COW">'+lyric.join('\n')+'</pre>';
                 pageDiv.innerHTML = '<pre role="img" aria-label="ASCII COW">'+lyric.join('\n')+'</pre>';
 
-                var tmp = '                   어느날 우연히 그 사람 고개숙여';
+                //var tmp = '                   어느날 우연히 그 사람 고개숙여';
                 //var tmp = '                   <font color=#3da126>어</font><span>느</span>날 우연히 그 사람 고개숙여';
                 //listDiv.innerHTML = tmp.replace(/[ ]/g,'&nbsp;');
                 //listDiv.innerHTML = tmp;
@@ -310,13 +315,50 @@ String.prototype.sliceByByte = function(start,width){
             start_i = i+1;
         }
         if(b==(start+width)){
-            log('start_i',start_i,'i',i,this.charAt(i));
-            tmp+= this.slice(start_i,i+1)+'</span>'+this.slice(i+1,this.length-1);
+            //log('start_i',start_i,'i',i,this.charAt(i));
+            tmp+= this.slice(start_i,i+1)+'</span>'+this.slice(i+1,this.length);
             width_i = i;
             break;
         }
         i++;
     }
+    return tmp;
+}
+
+// 시작위치
+//sr.findIndex( item=>{return item.line==5} ) ==> 6
+
+String.prototype.putLyrics = function(pos){
+    var tmp = '';
+    var start_i;
+    var width_i=0;
+    var posIdx = 0;
+
+    for(b=i=0;c=this.charCodeAt(i);) {
+        var isNotAscii = c>>7;
+        b+=isNotAscii?2:1;
+        //if (b > maxByte) break;
+        //log('b',b,pos[posIdx].start_x);
+        if(b==pos[posIdx].start_x && !posIdx) {
+            tmp = this.slice(0,i+1);
+            start_i = i+1;
+            log('start', b, pos[posIdx].start_x+width_i, 'posIdx', posIdx, pos.length, pos[posIdx]);
+        }
+        if(b==(pos[posIdx].start_x+pos[posIdx].width_x)){
+            log('start_i',start_i,'i',i,this.charAt(i));
+            tmp+= '<span>'+this.slice(start_i,i+1)+'</span>'
+            //width_i = i;
+            start_i = i+1;
+            posIdx++;
+            //log('end', 'posIdx', posIdx, pos.length, pos[posIdx]);
+            if(posIdx == pos.length){
+                tmp+=this.slice(i+1,this.length);
+                break;
+            }
+        }
+        i++;
+    }
+
     return tmp;
 }
 
@@ -331,21 +373,40 @@ function sliceByByte(str, maxByte) {
 }
 
     var shIndex = 0;
-    function viewLyric(){
-        listDiv.innerHTML = lyrics[ sr[shIndex].line ].replace(/[ ]/g,'&nbsp;');
-        btnDiv.innerHTML = JSON.stringify( sr[shIndex] );
+    var lyricTimer=null;
+    function mkTime(){return (sr[shIndex].kasa_tick-tick)*(140/69+10);}
+    function viewLyricNext(){
+        var lyc = lyrics[ sr[shIndex].line ].sliceByByte(sr[shIndex].start_x, sr[shIndex].width_x);
+        listDiv.innerHTML = '<pre aria-label="ASCII COW">'+lyc+'</pre>';
+//        btnDiv.innerHTML = JSON.stringify( sr[shIndex] );
+        document.querySelectorAll('#btnDiv > button')[1].innerHTML = JSON.stringify( sr[shIndex] );
         tick = sr[shIndex].kasa_tick;
         shIndex++;
         if(shIndex < sr.length){
-            setTimeout(viewLyric, (sr[shIndex].kasa_tick-tick)*5);
+            lyricTimer = setTimeout(viewLyricNext, mkTime());
         }else{
-            btnDiv.innerHTML = 'End';
+            document.querySelectorAll('#btnDiv > button')[1].innerHTML = 'End';
+        }
+    }
+    function viewLyric(){
+        console.log(shIndex);
+        if(!shIndex){
+            listDiv.innerHTML = '<pre aria-label="ASCII COW">'+lyrics[ sr[shIndex].line ]+'</pre>';
+        }
+        //btnDiv.innerHTML = JSON.stringify( sr[shIndex] );
+        if(lyricTimer){
+            clearTimeout(lyricTimer);
+            lyricTimer=null;
+            //document.querySelectorAll('#btnDiv > button')[1].innerHTML = 'ViewLyric';
+        }else{
+            tick = sr[shIndex].kasa_tick;
+            lyricTimer = setTimeout(viewLyricNext, mkTime());
         }
     }
   </script>
 </head>
 <body>
-<div id=listDiv></div>
+<div id=listDiv><pre>&nbsp;</pre></div>
 <div id=listDivFix><pre><br/> &nbsp;</pre></div>
 <div id=btnDiv><button onclick="download()">Download</button><button onclick="viewLyric()">ViewLyric</button></div>
 <div id=pageDiv></div>
