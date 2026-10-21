@@ -25,6 +25,7 @@
         width : 96%;
         background-color: #333333;
         color: #888888;
+        height:43px;
     }
     #pageDiv {
         border : 1px solid #323232;
@@ -36,7 +37,7 @@
         }
     }
     pre {
-        font-size: 12pt;
+        /*font-size: 12pt;*/
     }
     span {
         color:#3da126;
@@ -66,44 +67,13 @@ String.prototype.byteLength = function() {
 //출처: https://stove99.tistory.com/83 [스토브 훌로구:티스토리]
 
 
-console.logCopy = console.log.bind(console);
+    console.logCopy = console.log.bind(console);
 
-console.log = function()
-{
-    /*
-    // Timestamp to prepend
-    var timestamp = new Date().toJSON();
-    //var timestamp = new Date().toISOString();
-
-    if (arguments.length)
-    {
-        // True array copy so we can call .splice()
-        var args = Array.prototype.slice.call(arguments, 0);
-
-        // If there is a format string then... it must
-        // be a string
-        if (typeof arguments[0] === "string")
-        {
-            // Prepend timestamp to the (possibly format) string
-            args[0] = "%o: " + arguments[0];
-
-            // Insert the timestamp where it has to be
-            args.splice(1, 0, timestamp);
-
-            // Log the whole array
-            this.logCopy.apply(this, args);
-        }
-        else
-        {
-            // "Normal" log
-            this.logCopy(timestamp, args);
-        }
-    }
-    */
+    console.log = function(){
         this.logCopy.apply(console
             , [new Date().toJSON()].concat(Array.prototype.slice.call(arguments, 0)) );
+    };
 
-};
     function log() {
         console.log.apply(console, arguments);
     }
@@ -339,19 +309,24 @@ String.prototype.putLyrics = function(pos){
         b+=isNotAscii?2:1;
         //if (b > maxByte) break;
         //log('b',b,pos[posIdx].start_x);
-        if(b==pos[posIdx].start_x && !posIdx) {
-            tmp = this.slice(0,i+1);
+        if(b==pos[posIdx].start_x) {
+            if(!posIdx) tmp = this.slice(0,i+1);
+            else        tmp += this.slice(start_i,i+1);
             start_i = i+1;
-            log('start', b, pos[posIdx].start_x+width_i, 'posIdx', posIdx, pos.length, pos[posIdx]);
+            //log('start', b, pos[posIdx].start_x+width_i, 'posIdx', posIdx, pos.length, pos[posIdx]);
         }
         if(b==(pos[posIdx].start_x+pos[posIdx].width_x)){
-            log('start_i',start_i,'i',i,this.charAt(i));
+            //log('start_i',start_i,'i',i,this.charAt(i));
+            //if(posIdx) tmp+= this.slice(start_i,pos[posIdx].start_x-1);
+            //tmp+= '<span>'+this.slice(pos[posIdx].start_x,i+1)+'</span>'
             tmp+= '<span>'+this.slice(start_i,i+1)+'</span>'
+            //log('end', 'posIdx', posIdx, start_i, i+1, pos.length, pos[posIdx]);
             //width_i = i;
+            width_i = pos[posIdx].width_x;
             start_i = i+1;
             posIdx++;
-            //log('end', 'posIdx', posIdx, pos.length, pos[posIdx]);
             if(posIdx == pos.length){
+                //log('끝', 'posIdx', posIdx, i+1, this.slice(i+1,this.length));
                 tmp+=this.slice(i+1,this.length);
                 break;
             }
@@ -376,7 +351,10 @@ function sliceByByte(str, maxByte) {
     var lyricTimer=null;
     function mkTime(){return (sr[shIndex].kasa_tick-tick)*(140/69+10);}
     function viewLyricNext(){
-        var lyc = lyrics[ sr[shIndex].line ].sliceByByte(sr[shIndex].start_x, sr[shIndex].width_x);
+        //var lyc = lyrics[ sr[shIndex].line ].sliceByByte(sr[shIndex].start_x, sr[shIndex].width_x);
+        var start = sr.findIndex( item=>{return item.line==sr[shIndex].line} )
+        var lyc = lyrics[ sr[shIndex].line ].putLyrics(sr.slice(start,shIndex+1))
+
         listDiv.innerHTML = '<pre aria-label="ASCII COW">'+lyc+'</pre>';
 //        btnDiv.innerHTML = JSON.stringify( sr[shIndex] );
         document.querySelectorAll('#btnDiv > button')[1].innerHTML = JSON.stringify( sr[shIndex] );
@@ -386,6 +364,7 @@ function sliceByByte(str, maxByte) {
             lyricTimer = setTimeout(viewLyricNext, mkTime());
         }else{
             document.querySelectorAll('#btnDiv > button')[1].innerHTML = 'End';
+            shIndex=0;
         }
     }
     function viewLyric(){
