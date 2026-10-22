@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ISS</title>
+  <title>ISS 가사 보기</title>
   <style>
     body {background-color:#555555;}
     input {
@@ -15,6 +15,10 @@
         background-color:#333333;
         color:#efefef;
         font-size:14pt;
+    }
+    button:nth-child(2) {
+        font-size:12pt;
+        height:26px;
     }
     tbody tr:nth-child(odd) {
         background-color: #444444;
@@ -28,7 +32,8 @@
         height:43px;
     }
     #pageDiv {
-        border : 1px solid #323232;
+        border : 1px solid #454545;
+        padding: 0 5px 0 5px;
     }
 
     @media (max-width: 375px) {
@@ -37,11 +42,20 @@
         }
     }
     pre {
-        /*font-size: 12pt;*/
+        /**/font-size: 12pt;/**/
+        /*font-family:monospace;*/
+        margin:0;
     }
     span {
         color:#3da126;
     }
+
+    /* 고정폭 폰트로 교정 */
+    html {
+        font-feature-settings: "tnum";
+        font-variant-numeric: tabular-nums;
+    }
+
   </style>
   <script src="kssmcode.js?v1.0"></script>
   <script>
@@ -67,32 +81,33 @@ String.prototype.byteLength = function() {
 //출처: https://stove99.tistory.com/83 [스토브 훌로구:티스토리]
 
 
+    // console.log 에 Date 추가
     console.logCopy = console.log.bind(console);
-
     console.log = function(){
         this.logCopy.apply(console
             , [new Date().toJSON()].concat(Array.prototype.slice.call(arguments, 0)) );
     };
-
     function log() {
         console.log.apply(console, arguments);
     }
 
-var idx = 0;
+var idx = 0;  // iss 읽기 위치 - 출력용(디버깅용)
     //var Headerfunction 
-    var getByte = (()=>{
-        var position = 0;
+    var isErr = false;
+    var getByte = (()=>{ // iss byte 읽기 - 한글인경우 변환처리 함
+        var position = 0; // 버퍼의 읽기 위치 - 읽을때 마다 읽은 바이트만큼 증가함.
         return (length, type)=>{
-            var start = position;
-            position += length;
-            idx=position;
-            type=type||'';
-            if(type=='int8'){
+            var start = position; // 읽기 시작위치
+            position += length;   // 읽을 byte 수
+            idx=position;         // 읽기 위치 저장 - 디버깅용
+            type=type||'';        // 읽을 byte type
+            if(type=='int8'){     // 8bit 정수
                 return uInt8Array[start];
-            } else if(type=='int16'){
+            } else if(type=='int16'){ // 16비트 정수
                 return uInt8Array[position-1]<<8|uInt8Array[start];
             } else {
                 returnVal='';
+                isErr = false;
                 for(var i=0; i<length; i++){
                     var h = uInt8Array[ start+i   ];
                     //console.log(h)
@@ -110,13 +125,19 @@ var idx = 0;
                         if (ch >= 0x8861 && ch <= 0xd3b7) {	/* '가'부터 '힝'까지 2,350자 */
                             returnVal+=KSSMCODE[ch] || '';
                         } else if (ch >= 0xd931 && ch <= 0xdef1) {	/* 조합형 symbol */
-                            if(!KSSMCODE[ch]) console.log('MM', h, l, ch, ch.toString(16), KSSMCODE[ch]);
+                            if(!KSSMCODE[ch]){
+                                isErr = true;
+                                console.log('❔', ch.toString(16), KSSMCODE[ch]);
+                            }
                             //returnVal+='MM';
-                            returnVal+=KSSMCODE[ch] || 'MM';
+                            returnVal+=KSSMCODE[ch] || `<label title="${ch.toString(16)}">❔</label>`;
                         } else {	/* 초성 'ㄱ', 종성 자음, 모음 */
-                            if(!KSSMCODE[ch]) console.log('HH', h, l, ch, ch.toString(16), KSSMCODE[ch]);
+                            if(!KSSMCODE[ch]){
+                                isErr = true;
+                                console.log('❓', ch.toString(16), KSSMCODE[ch]);
+                            }
                             //returnVal+='HH';
-                            returnVal+=KSSMCODE[ch] || 'HH';
+                            returnVal+=KSSMCODE[ch] || '❓';
                         }
                         i++;
                     } else {
@@ -243,8 +264,11 @@ var file;
 log('file Position',idx);
                 // 가사 읽기
                 lyrics = [];
-                for(var i=0; i<sh.line_count; i++)
-                    lyrics.push( getByte(64) );   // 64 char
+                for(var i=0; i<sh.line_count; i++){
+                    var line = getByte(64);
+                    lyrics.push( line );   // 64 char
+                    if(isErr) console.log(i,line)
+                }
 //                listDiv.innerHTML = '<pre role="img" aria-label="ASCII COW">'+lyrics.join('\n')+'</pre>';
 
                 var brforeLine = sr[0].line;
@@ -349,13 +373,18 @@ function sliceByByte(str, maxByte) {
 
     var shIndex = 0;
     var lyricTimer=null;
-    function mkTime(){return (sr[shIndex].kasa_tick-tick)*(140/69+10);}
+    //function mkTime(){return (sr[shIndex].kasa_tick-tick)*(140/69+10);}
+    function mkTime(){return (sr[shIndex].kasa_tick-tick)*5
+    ;}
     function viewLyricNext(){
         //var lyc = lyrics[ sr[shIndex].line ].sliceByByte(sr[shIndex].start_x, sr[shIndex].width_x);
         var start = sr.findIndex( item=>{return item.line==sr[shIndex].line} )
         var lyc = lyrics[ sr[shIndex].line ].putLyrics(sr.slice(start,shIndex+1))
 
+        //listDiv.innerHTML = '<pre aria-label="ASCII COW">'+lyc+'</pre>';
+        if(lyrics!=(sr[shIndex].line+1)) lyc += '<Br>' + lyrics[ sr[shIndex].line+1 ];
         listDiv.innerHTML = '<pre aria-label="ASCII COW">'+lyc+'</pre>';
+        //listDiv.innerHTML = ''+lyc+'';
 //        btnDiv.innerHTML = JSON.stringify( sr[shIndex] );
         document.querySelectorAll('#btnDiv > button')[1].innerHTML = JSON.stringify( sr[shIndex] );
         tick = sr[shIndex].kasa_tick;
@@ -370,7 +399,10 @@ function sliceByByte(str, maxByte) {
     function viewLyric(){
         console.log(shIndex);
         if(!shIndex){
-            listDiv.innerHTML = '<pre aria-label="ASCII COW">'+lyrics[ sr[shIndex].line ]+'</pre>';
+            //listDiv.innerHTML = '<pre aria-label="ASCII COW">'+lyrics[ sr[shIndex].line ]+'</pre>';
+            var l = lyrics[ sr[shIndex].line ]
+            if(lyrics!=(sr[shIndex].line+1)) l += '\n' + lyrics[ sr[shIndex].line+1 ];
+            listDiv.innerHTML = '<pre aria-label="ASCII COW">'+l+'</pre>';
         }
         //btnDiv.innerHTML = JSON.stringify( sr[shIndex] );
         if(lyricTimer){
@@ -386,8 +418,9 @@ function sliceByByte(str, maxByte) {
 </head>
 <body>
 <div id=listDiv><pre>&nbsp;</pre></div>
-<div id=listDivFix><pre><br/> &nbsp;</pre></div>
+<div id=listDivFix style="height:43px;"><pre><br/> &nbsp;</pre></div>
 <div id=btnDiv><button onclick="download()">Download</button><button onclick="viewLyric()">ViewLyric</button></div>
 <div id=pageDiv></div>
+<div id=debug></div>
 </body>
 </html>
