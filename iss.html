@@ -34,6 +34,8 @@
     #pageDiv {
         border : 1px solid #454545;
         padding: 0 5px 0 5px;
+        background-color: #181818;
+        color: #777777;
     }
 
     @media (max-width: 375px) {
@@ -57,39 +59,13 @@
     }
 
   </style>
-  <script src="kssmcode.js?v1.0"></script>
+  <script src="kssmcode.js?v=1.0"></script>
+  <script src="iss.js?v=1.0"></script>
+  <script src="lib.js?v=1.0"></script>
   <script>
     var params = URLSearchParams && new URLSearchParams(document.location.search.substring(1));
     var url = params && params.get("url") && decodeURIComponent(params.get("url"));
 
-/**
- * 문자열의 바이트수 리턴
- * @returns {Number}
- */
-String.prototype.byteLength = function() {
-    var l= 0;
-
-    for(var idx=0; idx < this.length; idx++) {
-        var c = escape(this.charAt(idx));
-
-        if( c.length==1 ) l ++;
-        else if( c.indexOf("%u")!=-1 ) l += 2;
-        else if( c.indexOf("%")!=-1 ) l += c.length/3;
-    }
-    return l;
-};
-//출처: https://stove99.tistory.com/83 [스토브 훌로구:티스토리]
-
-
-    // console.log 에 Date 추가
-    console.logCopy = console.log.bind(console);
-    console.log = function(){
-        this.logCopy.apply(console
-            , [new Date().toJSON()].concat(Array.prototype.slice.call(arguments, 0)) );
-    };
-    function log() {
-        console.log.apply(console, arguments);
-    }
 
 var idx = 0;  // iss 읽기 위치 - 출력용(디버깅용)
     //var Headerfunction 
@@ -153,76 +129,9 @@ var idx = 0;  // iss 읽기 위치 - 출력용(디버깅용)
         }
     })();
 
-    // 해더
-    function SongHeader(){
-        return {
-            head_str   : getByte(20         )   // 25 char
-           ,reserved   : getByte(10         )   // 25 char
-           ,writer     : getByte(30         )   // 25 char
-           ,composer   : getByte(30         )   // 25 char
-           ,singer     : getByte(30         )   // 25 char
-           ,editor     : getByte(30         )   // 25 char
-           ,rec_count  : getByte( 2, 'int16')   // int
-           ,line_count : getByte( 2, 'int16')   // int
-        };
-    }
 
-    // 가사 출력관련 개체
-    function SongRec(){
-        return {
-            kasa_tick : getByte(2, 'int16') // int
-           ,line      : getByte(1, 'int8') //char
-           ,start_x   : getByte(1, 'int8') //char
-           ,width_x   : getByte(1, 'int8') //char
-        }
-    }
 
-    function download(filename, text) {
-        filename = file.split('/').pop()+'.txt';
-        text = lyric.join('\n');
 
-        var element = document.createElement('a');
-        //  element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(text));
-        element.setAttribute('href', 'data:text/plain;charset=utf-8,' + text);
-        element.setAttribute('download', filename);
-
-        element.style.display = 'none';
-        document.body.appendChild(element);
-
-        element.click();
-
-        document.body.removeChild(element);
-    }
-
-function myBlobToUIntDemo() {
-  let str='content';
-
-  str2blob=(str,type='text/plain')=>new Blob([str],{type:type});
-
-  let blob=str2blob(str);  
-
-  function blob2uint(blob){
-      return new Response(blob).arrayBuffer().then(buffer=>{
-          uint=[...new Uint8Array(buffer)];
-          console.log("Uint8Array",uint);
-          return uint;
-      });
-  }
-  
-  let uint8data = blob2uint(blob);
-  console.log(uint8data); //Show Uint8Array
-}
-
-function downloadFile() {
-  const blob = new Blob([lyric.join('\n')], {type: 'text/plain'})
-  const url = window.URL.createObjectURL(blob)
-  const a = document.createElement("a")
-  a.href = url
-  a.download = file.split('/').pop()+'.txt'
-  a.click()
-  a.remove()
-  window.URL.revokeObjectURL(url);
-}
 
 var uInt8Array;
 var binaryString;
@@ -259,9 +168,10 @@ var file;
                  sh = new SongHeader();
                 log('SongHeader',sh);
 
+                // 가사출력 정보
                 sr = [];
                 for(var i=0; i<sh.rec_count; i++) sr.push(new SongRec());
-log('file Position',idx);
+//log('file Position',idx);
                 // 가사 읽기
                 lyrics = [];
                 for(var i=0; i<sh.line_count; i++){
@@ -296,51 +206,87 @@ log('file Position',idx);
         xhr.send();
     }
 
-String.prototype.sliceByByte = function(start,width){
-    var tmp = '';
-    var start_i;
-    var width_i;
-    for(b=i=0;c=this.charCodeAt(i);) {
-        var isNotAscii = c>>7;
-        b+=isNotAscii?2:1;
-        //if (b > maxByte) break;
-        if(b==start) {
-            tmp = this.slice(0,i+1)+'<span>';
-            start_i = i+1;
-        }
-        if(b==(start+width)){
-            //log('start_i',start_i,'i',i,this.charAt(i));
-            tmp+= this.slice(start_i,i+1)+'</span>'+this.slice(i+1,this.length);
-            width_i = i;
-            break;
-        }
-        i++;
-    }
-    return tmp;
-}
-
 // 시작위치
 //sr.findIndex( item=>{return item.line==5} ) ==> 6
 
-String.prototype.putLyrics = function(pos){
-    var tmp = '';
-    var start_i;
-    var width_i=0;
-    var posIdx = 0;
+/*
+가사 한줄 출력 (하이라이트 표시)
+pos : 출력할 가사의 같은줄 배열
 
-    for(b=i=0;c=this.charCodeAt(i);) {
-        var isNotAscii = c>>7;
-        b+=isNotAscii?2:1;
+예시)
+긴 밤 지새우고 풀잎마다 맺힌        16, 40
+
+긴 밤 지새우고 풀잎마다 맺힌
+ |
+{kasa_tick: 264, line: 0, start_x: 0, width_x: 2}  pos[0]
+긴 밤 지새우고 풀잎마다 맺힌
+  | |
+{kasa_tick: 288, line: 0, start_x: 3, width_x: 2}  pos[1]
+긴 밤 지새우고 풀잎마다 맺힌
+     | |
+{kasa_tick: 324, line: 0, start_x: 6, width_x: 2}  pos[2]
+긴 밤 지새우고 풀잎마다 맺힌
+       | |
+{kasa_tick: 336, line: 0, start_x: 8, width_x: 2}  pos[3]
+긴 밤 지새우고 풀잎마다 맺힌
+         | |
+{kasa_tick: 360, line: 0, start_x: 10, width_x: 2} pos[4]
+긴 밤 지새우고 풀잎마다 맺힌
+           | |
+{kasa_tick: 384, line: 0, start_x: 12, width_x: 2}
+긴 밤 지새우고 풀잎마다 맺힌
+              |
+{kasa_tick: 456, line: 0, start_x: 15, width_x: 2}
+긴 밤 지새우고 풀잎마다 맺힌
+                |
+{kasa_tick: 480, line: 0, start_x: 17, width_x: 2}
+긴 밤 지새우고 풀잎마다 맺힌
+                  |
+{kasa_tick: 516, line: 0, start_x: 19, width_x: 2}
+긴 밤 지새우고 풀잎마다 맺힌
+                    |
+{kasa_tick: 528, line: 0, start_x: 21, width_x: 2}
+긴 밤 지새우고 풀잎마다 맺힌
+                       |
+{kasa_tick: 552, line: 0, start_x: 24, width_x: 2}
+긴 밤 지새우고 풀잎마다 맺힌
+                         |
+{kasa_tick: 576, line: 0, start_x: 26, width_x: 2}
+
+               ＫＩＳ ＭＵＳＩＣ ＬＯＶＥ ＣＬＵＢ     $
+             |                          |             |
+{kasa_tick: 546, line: 0, start_x: 14, width_x: 41}
+*/
+String.prototype.putLyrics = function(pos){
+    var tmp = '';    // 반환할 문자열
+    var start_i;     // 자를 시작위치(하이라이트 시작위치)
+    var width_i=0;   // 자를 너비(하이라이트 표시할 너비{글자수})
+    var posIdx = 0;  // 다음출력 pos 위치
+    for(b=i=0;c=this.charCodeAt(i);) { // 문자 단위 진행 (b는 byte i는 문자)
+        var isNotAscii = c>>7;         // 127 보다 크면 한글
+        b+=isNotAscii?2:1;             // 한글이면 2byte count
         //if (b > maxByte) break;
-        //log('b',b,pos[posIdx].start_x);
+//        log('b',b,'i',i,pos[posIdx].start_x,pos[posIdx].width_x,this.charAt(i));
+//        log('b',b,'i',i,pos[posIdx].start_x,pos[posIdx].width_x,this.charAt(i),b==pos[posIdx].start_x);
         if(b==pos[posIdx].start_x) {
             if(!posIdx) tmp = this.slice(0,i+1);
             else        tmp += this.slice(start_i,i+1);
-            start_i = i+1;
+            start_i = i+1; // 다음문자
+
+            if(posIdx){
+                // 이전줄보다 시작지점이 작으면(역방향)
+                if(pos[posIdx].start_x < pos[posIdx-1].start_x){
+                    start_i = i; // 현재위치
+                    tmp = this.slice(0, i);
+                }
+            }
+            //console.log('i['+i+'] b['+b+'] ch['+this.charAt(i)+'] posIdx['+posIdx+']','start_x',pos[posIdx].start_x, 'start_i', start_i, tmp)
+            /**/
             //log('start', b, pos[posIdx].start_x+width_i, 'posIdx', posIdx, pos.length, pos[posIdx]);
         }
         if(b==(pos[posIdx].start_x+pos[posIdx].width_x)){
             //log('start_i',start_i,'i',i,this.charAt(i));
+            //console.log('slice',start_i,i+1,this.slice(start_i,i+1));
             //if(posIdx) tmp+= this.slice(start_i,pos[posIdx].start_x-1);
             //tmp+= '<span>'+this.slice(pos[posIdx].start_x,i+1)+'</span>'
             tmp+= '<span>'+this.slice(start_i,i+1)+'</span>'
@@ -354,28 +300,43 @@ String.prototype.putLyrics = function(pos){
                 tmp+=this.slice(i+1,this.length);
                 break;
             }
+            // 이전줄보다 시작지점이 작으면(역방향)
+            if(pos[posIdx].start_x < pos[posIdx-1].start_x){
+                // 처음부터 다시 시작
+                i=-1; // 아래에서 +1 하므로 -1 하였음.
+                b=0;
+            }
         }
         i++;
     }
-
     return tmp;
 }
 
-function sliceByByte(str, maxByte) {
-    for(b=i=0;c=str.charCodeAt(i);) {
-        b+=c>>7?2:1;
-        if (b > maxByte)
-            break;
-        i++;
-    }
-    return str.substring(0,i);
+window['testpos'] = [
+     {"kasa_tick": 270,"line": 2,"start_x": 38,"width_x": 2}  // 0
+    ,{"kasa_tick": 285,"line": 2,"start_x": 36,"width_x": 1}  // 1
+    ,{"kasa_tick": 300,"line": 2,"start_x": 34,"width_x": 1}  // 2
+    ,{"kasa_tick": 315,"line": 2,"start_x": 32,"width_x": 1}  // 3
+    ,{"kasa_tick": 330,"line": 2,"start_x": 30,"width_x": 1}  // 4
+    ,{"kasa_tick": 345,"line": 2,"start_x": 28,"width_x": 1}  // 5
+    ,{"kasa_tick": 360,"line": 2,"start_x": 26,"width_x": 1}  // 6
+    ,{"kasa_tick": 375,"line": 2,"start_x": 23,"width_x": 2} // 7
+    ,{kasa_tick: 390, line: 2, start_x: 23, width_x: 17} // 8
+    ,{kasa_tick: 405, line: 2, start_x:  0, width_x: 40} // 9
+];
+
+function test(start,end){
+    start=start||0;
+    end = end||10;
+    var lyc = lyrics[ 2 ].putLyrics( testpos.slice(start,end) )
+    listDiv.innerHTML = '<pre aria-label="ASCII COW">'+lyc+'</pre>';
 }
+
 
     var shIndex = 0;
     var lyricTimer=null;
     //function mkTime(){return (sr[shIndex].kasa_tick-tick)*(140/69+10);}
-    function mkTime(){return (sr[shIndex].kasa_tick-tick)*5
-    ;}
+    function mkTime(){return (sr[shIndex].kasa_tick-tick)*5;}
     function viewLyricNext(){
         //var lyc = lyrics[ sr[shIndex].line ].sliceByByte(sr[shIndex].start_x, sr[shIndex].width_x);
         var start = sr.findIndex( item=>{return item.line==sr[shIndex].line} )
@@ -392,12 +353,14 @@ function sliceByByte(str, maxByte) {
         if(shIndex < sr.length){
             lyricTimer = setTimeout(viewLyricNext, mkTime());
         }else{
+            clearTimeout(lyricTimer);
+            lyricTimer=null;
             document.querySelectorAll('#btnDiv > button')[1].innerHTML = 'End';
             shIndex=0;
         }
     }
     function viewLyric(){
-        console.log(shIndex);
+        //console.log(shIndex);
         if(!shIndex){
             //listDiv.innerHTML = '<pre aria-label="ASCII COW">'+lyrics[ sr[shIndex].line ]+'</pre>';
             var l = lyrics[ sr[shIndex].line ]
@@ -406,20 +369,29 @@ function sliceByByte(str, maxByte) {
         }
         //btnDiv.innerHTML = JSON.stringify( sr[shIndex] );
         if(lyricTimer){
+            //console.log('일시정지');
             clearTimeout(lyricTimer);
             lyricTimer=null;
             //document.querySelectorAll('#btnDiv > button')[1].innerHTML = 'ViewLyric';
         }else{
+            //console.log('재생');
             tick = sr[shIndex].kasa_tick;
             lyricTimer = setTimeout(viewLyricNext, mkTime());
         }
     }
+    function lyricDownload(){
+        var filename = file.split('/').pop()+'.txt';
+        var text = lyric.join('\n');
+
+        download(filename, text);
+    }
+
   </script>
 </head>
 <body>
 <div id=listDiv><pre>&nbsp;</pre></div>
 <div id=listDivFix style="height:43px;"><pre><br/> &nbsp;</pre></div>
-<div id=btnDiv><button onclick="download()">Download</button><button onclick="viewLyric()">ViewLyric</button></div>
+<div id=btnDiv><button onclick="lyricDownload()">Download</button><button onclick="viewLyric()">ViewLyric</button></div>
 <div id=pageDiv></div>
 <div id=debug></div>
 </body>
